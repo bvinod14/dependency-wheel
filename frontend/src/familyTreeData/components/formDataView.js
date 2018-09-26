@@ -19,6 +19,7 @@ class FormDataView extends Component {
     this.familyData = [];
     this.spouseData = [];
     this.parentData = [];
+    this.editData = [];
 
     this.handleInputChange = this.handleInputChange.bind(this);
     this.validateRequired = this.validateRequired.bind(this);
@@ -26,6 +27,9 @@ class FormDataView extends Component {
     this.resetState = this.resetState.bind(this);
     this.editUserDetails = this.editUserDetails.bind(this);
     this.updateSpouseData = this.updateSpouseData.bind(this);
+    this.linkTheSpouse = this.linkTheSpouse.bind(this);
+    this.buildDataToUpdateModel = this.buildDataToUpdateModel.bind(this);
+    this.generateParentData = this.generateParentData.bind(this);
   }
 
   handleInputChange(e){
@@ -52,11 +56,14 @@ class FormDataView extends Component {
     let isValid = this.validateRequired();
     if(isValid){
       let userData = new BaseStructure();
-      userData.userInputs(this.state);
+      let id = this.state.editId > -1 ? this.editData.id : generateId();
+      let parsedData = this.buildDataToUpdateModel(this.state, id)
+      userData.updateAll(parsedData);
       if(this.state.editId > -1){
+        userData.updateId(id);
         this.familyData.splice(this.state.editId, 1, userData);
       }else {
-        userData.updateId(generateId());
+        userData.updateId(id);
         this.familyData.push(userData);
       }
       this.resetState();
@@ -65,6 +72,79 @@ class FormDataView extends Component {
       this.setState({error: true});
     }
 
+    this.generateParentData();
+  }
+
+  buildDataToUpdateModel(data, id) {
+    let userData ={};
+
+    userData.name = data.name;
+    userData.gender = data.gender;
+
+    if(data.spouse) {
+      let marriageId = generateMarriageId();
+      userData.marriageId = marriageId;
+      this.linkTheSpouse(data.spouse, marriageId, id);
+      userData.spouseId = data.spouse;
+    }
+
+    userData.parentId = data.parent ? data.parent : '';
+
+    return userData;
+
+  }
+
+  /**
+   * this will traverse through the family data, upon matching with the id marriage Id is added
+   * @param {string} spouseId Unique Id of the existing user
+   * @param {string} marriageId marriage Id will be same for both the spouses
+   * @param {number} currentId the generated ID 
+   */
+  linkTheSpouse(spouseId, marriageId, currentId) {
+
+    for (var i=0; i < this.familyData.length; i++){
+      var val = this.familyData[i];
+
+      if( val.id == spouseId ){
+        val.marriageId = marriageId;
+        val.spouseId = currentId;
+        break;
+      }
+    }
+
+    
+
+  }
+
+  generateParentData() {
+    if(this.familyData.length < 1) return;
+
+    let parentData = [];
+    let currentList = {};
+
+    function addOrUpdate(marriageId, name) {
+      if(currentList.hasOwnProperty(marriageId)){
+        let obj = {
+          id: marriageId,
+          name: currentList[marriageId] + ', ' + name
+        }
+        parentData.push(obj);
+        currentList = {};
+      } else{
+        currentList[marriageId] = name;
+      }
+
+    }
+
+    for(var i=0; i< this.familyData.length; i++){
+      let val = this.familyData[i];
+      if(val.marriageId){
+        addOrUpdate(val.marriageId, val.name);
+      }
+
+    }
+
+    this.parentData = parentData;
   }
 
   resetState(){
@@ -80,15 +160,15 @@ class FormDataView extends Component {
   }
 
   editUserDetails(index) {
-    let data = this.familyData[index];
+    let data = this.editData = this.familyData[index];
     let userDetails = {
       name: data.name,
       gender: data.gender,
-      spouse: data.spouse,
-      parent: data.parent,
+      spouse: data.spouseId,
+      parent: data.parentId,
       editId: index
     }
-
+    this.updateSpouseData(data.gender);
     this.setState(userDetails);
   }
 
@@ -146,22 +226,33 @@ class FormDataView extends Component {
             {
               this.spouseData.length > 0 &&
               this.spouseData.map((val, index) => {
-                return <option value={val} key={index}>{val.name}</option>
+                return <option value={val.id} key={index}>{val.name}</option>
               })
             }
             </select>
           </div>
           <div className="field-full">
-            <label>Parent</label>
+            <label>Parents</label>
             <select type="text" name="parent" value={this.state.parent} 
               onChange={this.handleInputChange}
             >
+            <option></option>
+            { this.parentData.length > 0 &&
+                this.parentData.map((val, index) =>{
+                  return <option key={val.id} value={val.id}>{val.name}</option>
+                })
+
+            }
             </select>
           </div>
           <div className="text-center">
             <button type="button" className="button" 
               onClick={this.addToRegistry}
             >Add</button>
+            <button type="button" className="button"
+              onClick={this.resetState}>
+                Cancel
+              </button>
           </div>
         </div>
       </div>
